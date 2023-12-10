@@ -2,14 +2,15 @@ import { mnemonicToSeedSync, entropyToMnemonic } from 'bip39';
 import { 
     Keypair,
     Connection,
-    clusterApiUrl,
     PublicKey,
     Transaction,
     SystemProgram,
-    LAMPORTS_PER_SOL
+    LAMPORTS_PER_SOL,
+    TransactionInstruction
 } from '@solana/web3.js';
 import {
     createTransferCheckedInstruction,
+    getOrCreateAssociatedTokenAccount
 } from "@solana/spl-token";
 import { randomBytes } from 'crypto';
 
@@ -164,7 +165,7 @@ export class Wallet {
             const feeRate = recentBlockhash.feeCalculator.lamportsPerSignature;
             const estimatedCost = txSize * feeRate;
 
-            return { success: true, description: `${estimatedCost}` };
+            return { success: true, description: `${(estimatedCost / LAMPORTS_PER_SOL)}` };
         } catch (error) {
             return { success: false, description: `Getting estimation failed: ${error}` };
         }
@@ -238,8 +239,13 @@ export class Wallet {
             if (walletBalance < amount) {
                 return { success: false, description: `insufficient funds` };
             }
+            const provider = await this.getProdiver();
 
-            const transaction = new Transaction();
+            const transaction = new Transaction({
+                feePayer: new PublicKey(this.getAddress()),
+                blockhash: (await provider.getRecentBlockhash()).blockhash,
+                lastValidBlockHeight: (await provider.getBlockHeight())
+            });
             transaction.add(
                 SystemProgram.transfer({
                     fromPubkey: this.keypair.publicKey,
@@ -248,7 +254,6 @@ export class Wallet {
                 })
             );
             transaction.sign(this.keypair);
-            const provider = await this.getProdiver();
             const tx = await provider.sendTransaction(transaction, [this.keypair]);
 
             return { success: true, description: tx };
@@ -257,36 +262,57 @@ export class Wallet {
         }
     }
 
-    public async sendTokenTo(tokenAddress: string, receiverAddress: string, amount: number) {
+    public async sendTokenTo(tokenAddress: string, receiverAddress: string, amount: string) {
+
         try {
-            const receiverPublicKey = new PublicKey(receiverAddress);
-            const tokenBalance = await this.getTokenBalance(tokenAddress);
+            const amountN = Number(amount);
+            const tokenMintAddress = tokenAddress;
+            const wallet = {
+                payer: this.keypair,
+                publicKey: this.keypair.publicKey
+            };
+            const connection = await this.getProdiver();
+            const mintPublicKey = new PublicKey(tokenMintAddress);
+            const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
+                connection,
+                wallet.payer,
+                mintPublicKey,
+                wallet.publicKey
+            );
+            const destPublicKey = new PublicKey(receiverAddress);
+            const toTokenAccount = await getOrCreateAssociatedTokenAccount(
+                connection,
+                wallet.payer,
+                mintPublicKey,
+                destPublicKey
+            );
+            const instructions: TransactionInstruction[] = [];  
+            const tokenAccount = await connection.getParsedTokenAccountsByOwner(this.keypair.publicKey, { mint: new PublicKey(tokenAddress) });
 
-            if (tokenBalance < Number(amount)) {
-                return { success: false, description: 'insufficient funds' };
-            }
-
-            // const test = new PublicKey('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263');
-            const provider = await this.getProdiver();
-            const tokenAccount = await provider.getParsedTokenAccountsByOwner(this.keypair.publicKey, { mint: new PublicKey(tokenAddress) });
-            const transaction = new Transaction();
-
-            transaction.add(
+            instructions.push(
                 createTransferCheckedInstruction(
-                    this.keypair.publicKey,
-                    new PublicKey(tokenAddress),
-                    receiverPublicKey,
-                    this.keypair.publicKey,
-                    amount * 1e9,
-                    tokenAccount.value[0].account.data.parsed.info.decimals,
+                    fromTokenAccount.address,
+                    mintPublicKey,
+                    toTokenAccount.address,
+                    wallet.publicKey,
+                    amountN * Math.pow(10, tokenAccount.value[0].account.data.parsed.info.tokenAmount.decimals),
+                    tokenAccount.value[0].account.data.parsed.info.tokenAmount.decimals
                 )
             );
-            transaction.sign(this.keypair);
-            const tx = await provider.sendTransaction(transaction, [this.keypair]);
 
+            const transaction = new Transaction().add(...instructions);
+            transaction.feePayer = wallet.publicKey;
+            transaction.recentBlockhash = (await connection.getRecentBlockhash()).blockhash;
+            transaction.lastValidBlockHeight = (await connection.getBlockHeight());
+            transaction.sign(this.keypair);
+
+            const tx = await connection.sendRawTransaction(
+                transaction.serialize(),
+                { skipPreflight: true }
+            );
             return { success: true, tx, description: tx };
-        } catch (error) {
-            return { success: false, description: `Send token failed: ${error}` };
+        } catch (e) {
+            return { success: false, description: e.message };
         }
     }
 }
