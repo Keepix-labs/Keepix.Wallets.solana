@@ -24,23 +24,19 @@ export class Wallet {
     private keypair: Keypair;
     private rpc: Connection;
     private mnemonic?: string;
-    private keepixTokens?: { coins: any, tokens: any };
 
     constructor({
         password,
         mnemonic,
         privateKey,
-        keepixTokens,
         privateKeyTemplate = '0x2050939757b6d498bb0407e001f0cb6db05c991b3c6f7d8e362f9d27c70128b9'
     }:{
         password?: string,
         mnemonic?: string,
         privateKey?: string,
-        keepixTokens?: { coins: any, tokens: any }
         privateKeyTemplate?: string
     }) {
         this.keypair = Keypair.generate();
-        this.keepixTokens = keepixTokens;
         this.rpc = new Connection(clusterApiUrl("mainnet-beta"), "confirmed");
 
         // from password
