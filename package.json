@@ -18,7 +18,7 @@
     "types": "tsc --declaration --emitDeclarationOnly",
     "deploy": "npm publish --access public"
   },
-  "author": "jode-vri@student.42lyon.fr",
+  "author": "jguyet@keepix.io",
   "license": "MIT",
   "keywords": [
     "solana",
