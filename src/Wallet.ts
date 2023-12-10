@@ -22,22 +22,29 @@ function createPrivateKey(templatePrivateKey: string, password: string) {
 export class Wallet {
 
     private keypair: Keypair;
-    private rpc: Connection;
     private mnemonic?: string;
+    private type: string = 'solana';
+    private keepixTokens?: { coins: any, tokens: any };
+    private rpc: any;
 
     constructor({
         password,
         mnemonic,
         privateKey,
+        keepixTokens,
+        rpc,
         privateKeyTemplate = '0x2050939757b6d498bb0407e001f0cb6db05c991b3c6f7d8e362f9d27c70128b9'
     }:{
         password?: string,
         mnemonic?: string,
         privateKey?: string,
-        privateKeyTemplate?: string
+        keepixTokens?: { coins: any, tokens: any }, // whitelisted coins & tokens
+        rpc?: any,
+        privateKeyTemplate?: string,
     }) {
+        this.keepixTokens = keepixTokens;
+        this.rpc = rpc;
         this.keypair = Keypair.generate();
-        this.rpc = new Connection(clusterApiUrl("mainnet-beta"), "confirmed");
 
         // from password
         if (password !== undefined) {
@@ -78,8 +85,36 @@ export class Wallet {
         return this.keypair.publicKey.toString();
     }
 
-    public getProdiver() {
-        return this.rpc.rpcEndpoint;
+    public async getProdiver() {
+        const defaultRPC = new Connection('https://api.mainnet-beta.solana.com', "confirmed");
+        let overridedRpc: any = undefined;
+
+        if (this.rpc !== undefined && typeof this.rpc === 'object') {
+            overridedRpc = this.rpc;
+        }
+
+        const coins = this.keepixTokens?.coins;
+        if (coins === undefined) {
+            return defaultRPC;
+        }
+        const coinInformation = coins[this.type];
+        if (coinInformation === undefined) {
+            return defaultRPC;
+        }
+        if (coins[this.type].rpcs === undefined || !Array.isArray(coins[this.type].rpcs)) {
+            return defaultRPC;
+        }
+        if (coins[this.type].rpcs.length === 0) {
+            return defaultRPC;
+        }
+        let rpc = coins[this.type].rpcs[Math.floor(Math.random()*coins[this.type].rpcs.length)];
+
+        if (overridedRpc !== undefined
+            && overridedRpc.chainId !== undefined
+            && overridedRpc.url !== undefined && overridedRpc.url !== '') {
+            rpc = overridedRpc;
+        }
+        return new Connection(rpc.url, "confirmed");
     }
 
     public async getCoinBalance(walletAddress?: string) {
@@ -89,7 +124,8 @@ export class Wallet {
             publicKey = new PublicKey(walletAddress);
         else
             publicKey = new PublicKey(this.keypair.publicKey.toString())
-        return (await this.rpc.getBalance(publicKey) / LAMPORTS_PER_SOL);
+        const provider = await this.getProdiver();
+        return (await provider.getBalance(publicKey) / LAMPORTS_PER_SOL);
     }
 
     public async getTokenBalance(tokenAddress: string, walletAddress?: string) {
@@ -101,7 +137,8 @@ export class Wallet {
             publicKey = this.keypair.publicKey;
         }
 
-        const tokenAccounts = await this.rpc.getParsedTokenAccountsByOwner(publicKey, { mint: new PublicKey(tokenAddress) });
+        const provider = await this.getProdiver();
+        const tokenAccounts = await provider.getParsedTokenAccountsByOwner(publicKey, { mint: new PublicKey(tokenAddress) });
         let tokenBalance: number = 0;
 
         for (const accountInfo of tokenAccounts.value) {
@@ -116,7 +153,8 @@ export class Wallet {
 
     public async estimateCostOfTx(tx: any) {
         try {
-            const recentBlockhash = await this.rpc.getRecentBlockhash();
+            const provider = await this.getProdiver();
+            const recentBlockhash = await provider.getRecentBlockhash();
 
             tx.recentBlockhash = recentBlockhash.blockhash;
             tx.sign(this.keypair);
@@ -168,7 +206,8 @@ export class Wallet {
             }
 
             // const test = new PublicKey('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263');
-            const tokenAccount = await this.rpc.getParsedTokenAccountsByOwner(this.keypair.publicKey, { mint: new PublicKey(tokenAddress) });
+            const provider = await this.getProdiver();
+            const tokenAccount = await provider.getParsedTokenAccountsByOwner(this.keypair.publicKey, { mint: new PublicKey(tokenAddress) });
 
             const transaction = new Transaction();
 
@@ -209,7 +248,8 @@ export class Wallet {
                 })
             );
             transaction.sign(this.keypair);
-            const tx = await this.rpc.sendTransaction(transaction, [this.keypair]);
+            const provider = await this.getProdiver();
+            const tx = await provider.sendTransaction(transaction, [this.keypair]);
 
             return { success: true, description: tx };
         } catch (error) {
@@ -227,7 +267,8 @@ export class Wallet {
             }
 
             // const test = new PublicKey('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263');
-            const tokenAccount = await this.rpc.getParsedTokenAccountsByOwner(this.keypair.publicKey, { mint: new PublicKey(tokenAddress) });
+            const provider = await this.getProdiver();
+            const tokenAccount = await provider.getParsedTokenAccountsByOwner(this.keypair.publicKey, { mint: new PublicKey(tokenAddress) });
             const transaction = new Transaction();
 
             transaction.add(
@@ -241,7 +282,7 @@ export class Wallet {
                 )
             );
             transaction.sign(this.keypair);
-            const tx = await this.rpc.sendTransaction(transaction, [this.keypair]);
+            const tx = await provider.sendTransaction(transaction, [this.keypair]);
 
             return { success: true, tx, description: tx };
         } catch (error) {
