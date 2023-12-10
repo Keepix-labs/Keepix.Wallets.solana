@@ -195,11 +195,61 @@ export class Wallet {
         }
     }
 
-    public async sendCoinTo(receiverAddress: string, amount: string) {
+    public async sendCoinTo(receiverAddress: string, amount: number) {
+        try {
+            const receiverPublicKey = new PublicKey(receiverAddress);
+            const walletBalance = await this.getCoinBalance();
 
+            if (walletBalance < amount) {
+                return { success: false, description: `insufficient funds` };
+            }
+
+            const transaction = new Transaction();
+            transaction.add(
+                SystemProgram.transfer({
+                    fromPubkey: this.keypair.publicKey,
+                    toPubkey: receiverPublicKey,
+                    lamports: amount * LAMPORTS_PER_SOL,
+                })
+            );
+            transaction.sign(this.keypair);
+            const tx = await this.rpc.sendTransaction(transaction, [this.keypair]);
+
+            return { success: true, description: tx };
+        } catch (error) {
+            return { success: false, description: `Sending SOL failed: ${error}` };
+        }
     }
 
-    public async sendTokenTo(tokenAddress: string, receiverAddress: string, amount: string) {
+    public async sendTokenTo(tokenAddress: string, receiverAddress: string, amount: number) {
+        try {
+            const receiverPublicKey = new PublicKey(receiverAddress);
+            const tokenBalance = await this.getTokenBalance(tokenAddress);
 
+            if (tokenBalance < Number(amount)) {
+                return { success: false, description: 'insufficient funds' };
+            }
+
+            // const test = new PublicKey('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263');
+            const tokenAccount = await this.rpc.getParsedTokenAccountsByOwner(this.keypair.publicKey, { mint: new PublicKey(tokenAddress) });
+            const transaction = new Transaction();
+
+            transaction.add(
+                createTransferCheckedInstruction(
+                    this.keypair.publicKey,
+                    new PublicKey(tokenAddress),
+                    receiverPublicKey,
+                    this.keypair.publicKey,
+                    amount * 1e9,
+                    tokenAccount.value[0].account.data.parsed.info.decimals,
+                )
+            );
+            transaction.sign(this.keypair);
+            const tx = await this.rpc.sendTransaction(transaction, [this.keypair]);
+
+            return { success: true, tx, description: tx };
+        } catch (error) {
+            return { success: false, description: `Send token failed: ${error}` };
+        }
     }
 }

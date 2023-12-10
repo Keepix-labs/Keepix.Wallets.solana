@@ -99,7 +99,6 @@ describe('basic wallet', () => {
       const wallet = new Wallet({ password: 'toor' });
       const estimationResult = await wallet.estimateCostSendTokenTo('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', 'Cd5PHnve4rJDHBAGvXgJnouddALyX3NmbwN3s3MzvPBQ', 1);
 
-      console.log(estimationResult?.description);
       expect(estimationResult?.success).toBe(false);
       expect(estimationResult?.description).toMatch('insufficient funds');
     });
