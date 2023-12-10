@@ -126,7 +126,7 @@ export class Wallet {
         else
             publicKey = new PublicKey(this.keypair.publicKey.toString())
         const provider = await this.getProdiver();
-        return (await provider.getBalance(publicKey) / LAMPORTS_PER_SOL);
+        return (await provider.getBalance(publicKey) / LAMPORTS_PER_SOL).toFixed(8);
     }
 
     public async getTokenBalance(tokenAddress: string, walletAddress?: string) {
@@ -149,7 +149,7 @@ export class Wallet {
             tokenBalance = Number((amount / Math.pow(10, decimals)).toFixed(decimals));
         }
 
-        return tokenBalance;
+        return tokenBalance.toFixed(8);
     }
 
     public async estimateCostOfTx(tx: any) {
@@ -176,7 +176,7 @@ export class Wallet {
             const receiverPublicKey = new PublicKey(receiverAddress);
             const walletBalance = await this.getCoinBalance();
 
-            if (walletBalance < amount) {
+            if (Number(walletBalance) < amount) {
                 return { success: false, description: `insufficient funds` };
             }
 
@@ -202,7 +202,7 @@ export class Wallet {
             const receiverPublicKey = new PublicKey(receiverAddress);
             const tokenBalance = await this.getTokenBalance(tokenAddress);
 
-            if (tokenBalance < Number(amount)) {
+            if (Number(tokenBalance) < Number(amount)) {
                 return { success: false, description: 'insufficient funds' };
             }
 
@@ -236,7 +236,7 @@ export class Wallet {
             const receiverPublicKey = new PublicKey(receiverAddress);
             const walletBalance = await this.getCoinBalance();
 
-            if (walletBalance < amount) {
+            if (Number(walletBalance) < amount) {
                 return { success: false, description: `insufficient funds` };
             }
             const provider = await this.getProdiver();

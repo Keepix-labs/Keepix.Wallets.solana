@@ -78,13 +78,13 @@ describe('basic wallet', () => {
     it('can get balance', async () => {
         const wallet = new Wallet({ password: 'toor' });
 
-        expect(await wallet.getCoinBalance()).toEqual(0);
+        expect(await wallet.getCoinBalance()).toEqual('0.00203928');
     }, 60000);
 
     it('can get token balance', async () => {
         const wallet = new Wallet({ password: 'toor' });
 
-        expect(await wallet.getTokenBalance('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', address)).toEqual(0);
+        expect(await wallet.getTokenBalance('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', address)).toEqual('0.00001000');
     }, 60000);
 
     it('can estimate sendCoin', async () => {
