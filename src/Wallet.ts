@@ -87,7 +87,7 @@ export class Wallet {
     }
 
     public async getProdiver() {
-        const defaultRPC = new Connection('https://api.mainnet-beta.solana.com', "confirmed");
+        const defaultRPC = new Connection('https://solana-rpc.publicnode.com', "confirmed");
         let overridedRpc: any = undefined;
 
         if (this.rpc !== undefined && typeof this.rpc === 'object') {
